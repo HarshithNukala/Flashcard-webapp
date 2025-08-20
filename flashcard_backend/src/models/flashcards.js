@@ -18,7 +18,7 @@ const flashcardSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false,
+      required: true,
     },
     deck: {
       type: mongoose.Schema.Types.ObjectId,

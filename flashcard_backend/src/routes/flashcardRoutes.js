@@ -6,13 +6,14 @@ import {
   updateFlashcardById,
   deleteFlashcardById,
 } from "../controllers/flashcardController.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/", getFlashcards);
-router.get("/:id", getFlashcardsById);
-router.post("/", createFlashcard);
-router.put("/:id", updateFlashcardById);
-router.delete("/:id", deleteFlashcardById);
+router.get("/",authMiddleware, getFlashcards);
+router.get("/:id",authMiddleware, getFlashcardsById);
+router.post("/",authMiddleware, createFlashcard);
+router.put("/:id",authMiddleware, updateFlashcardById);
+router.delete("/:id",authMiddleware, deleteFlashcardById);
 
 export default router;

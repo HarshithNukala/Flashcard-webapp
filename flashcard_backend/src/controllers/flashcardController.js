@@ -1,9 +1,9 @@
-import flashcard from "../models/flashcards.js";
+import Flashcard from "../models/flashcards.js";
+import User from "../models/user.js";
 
 const getFlashcards = async (req, res) => {
-  // res.json("Get all the flashcards.")
   try {
-    const flashcards = await flashcard.find();
+    const flashcards = await Flashcard.find({ user: req.user.id });
     res.status(200).json(flashcards);
   } catch (error) {
     console.error("Error in getflashcards controller", error);
@@ -11,15 +11,20 @@ const getFlashcards = async (req, res) => {
   }
 };
 
-const getFlashcardsById = (req, res) => {
+const getFlashcardsById = async (req, res) => {
   res.json("Get flashcards by id.");
 };
 
 const createFlashcard = async (req, res) => {
-  // res.json("create flashcard.")
   try {
     const { question, answer, type, options } = req.body;
-    const newFlashcard = new flashcard({ question, answer, type, options });
+    const newFlashcard = new Flashcard({
+      question,
+      answer,
+      type,
+      options,
+      user: req.user.id,
+    });
     await newFlashcard.save();
     res
       .status(201)
@@ -30,12 +35,46 @@ const createFlashcard = async (req, res) => {
   }
 };
 
-const updateFlashcardById = (req, res) => {
-  res.json("update flashcard by id.");
+const updateFlashcardById = async (req, res) => {
+  const flashcard = await Flashcard.findById(req.params.id);
+  if (!flashcard) {
+    res.status(400);
+    throw new Error("Flashcard not found.");
+  }
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    res.status(401);
+    throw new Error("User not found.");
+  }
+  if (flashcard.user.toString() !== user._id.toString()) {
+    res.status(401);
+    throw new Error("Access not authorized.");
+  }
+  const updatedFlashcard = await Flashcard.findByIdAndUpdate(
+    req.params.id,
+    req.body,
+    { new: true }
+  );
+  res.status(200).json(updatedFlashcard);
 };
 
-const deleteFlashcardById = (req, res) => {
-  res.json("delete flashcard by id.");
+const deleteFlashcardById = async (req, res) => {
+  const flashcard = await Flashcard.findById(req.params.id);
+  if (!flashcard) {
+    res.status(400);
+    throw new Error("Flashcard not found.");
+  }
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    res.status(401);
+    throw new Error("User not found.");
+  }
+  if (flashcard.user.toString() !== user._id.toString()) {
+    res.status(401);
+    throw new Error("Access not authorized.");
+  }
+  const deletedFlashcard = await Flashcard.findByIdAndDelete(req.params.id);
+  res.status(200).json(deletedFlashcard);
 };
 
 export {
