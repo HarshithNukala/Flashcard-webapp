@@ -24,6 +24,7 @@ const createFlashcard = async (req, res) => {
       type,
       options,
       user: req.user.id,
+      deck: req.params.id,
     });
     await newFlashcard.save();
     res

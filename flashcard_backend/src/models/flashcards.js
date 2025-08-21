@@ -23,7 +23,7 @@ const flashcardSchema = new mongoose.Schema(
     deck: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Deck",
-      required: false,
+      required: true,
     },
   },
   { timestamps: true }

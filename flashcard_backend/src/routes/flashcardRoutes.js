@@ -12,7 +12,7 @@ const router = express.Router();
 
 router.get("/",authMiddleware, getFlashcards);
 router.get("/:id",authMiddleware, getFlashcardsById);
-router.post("/",authMiddleware, createFlashcard);
+router.post("/:id",authMiddleware, createFlashcard);
 router.put("/:id",authMiddleware, updateFlashcardById);
 router.delete("/:id",authMiddleware, deleteFlashcardById);
 
