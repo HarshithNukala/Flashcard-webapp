@@ -1,5 +1,6 @@
 import Flashcard from "../models/flashcards.js";
 import User from "../models/user.js";
+import Deck from "../models/decks.js";
 
 const getFlashcards = async (req, res) => {
   try {
@@ -11,13 +12,31 @@ const getFlashcards = async (req, res) => {
   }
 };
 
-const getFlashcardsById = async (req, res) => {
-  res.json("Get flashcards by id.");
+const getFlashcardsByDeckId = async (req, res) => {
+  const flashcards = await Flashcard.find({
+    user: req.user.id,
+    deck: req.params.id,
+  });
+  if (!flashcards) {
+    res.status(500).json({ message: "No flashcards found in the deck." });
+  }
+  res.status(200).json(flashcards);
 };
 
 const createFlashcard = async (req, res) => {
   try {
     const { question, answer, type, options } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      res.status(400).json({ message: "User not found." });
+    }
+    const deck = await Deck.findById(req.params.id);
+    if (!deck) {
+      res.status(400).json({ message: "Invalid Deck" });
+    }
+    if (user._id.toString() !== deck.user.toString()) {
+      res.status(500).json("Access not authorized.");
+    }
     const newFlashcard = new Flashcard({
       question,
       answer,
@@ -80,7 +99,7 @@ const deleteFlashcardById = async (req, res) => {
 
 export {
   getFlashcards,
-  getFlashcardsById,
+  getFlashcardsByDeckId,
   createFlashcard,
   updateFlashcardById,
   deleteFlashcardById,

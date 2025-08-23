@@ -10,7 +10,7 @@ dotenv.config();
 
 const app = express();
 
-connectDB();
+await connectDB();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
