@@ -50,17 +50,23 @@ const authLogin = async (req, res) => {
     res.status(400);
     throw new Error("Incorrect password.");
   }
-  res.status(201).json({
+  res.status(201).send({
     message: "Login succussfull",
     userId: user._id,
     name: user.name,
     email: user.email,
     token: generateToken(user._id),
+    // token: generateToken(user._id),
+    // userId: user._id,
   });
 };
 
 const authMe = (req, res) => {
-  res.json({UserId: req.user._id, Name: req.user.name, Email: req.user.email});
+  res.json({
+    UserId: req.user._id,
+    Name: req.user.name,
+    Email: req.user.email,
+  });
 };
 
 const generateToken = (id) => {

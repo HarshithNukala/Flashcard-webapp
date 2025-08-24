@@ -5,12 +5,15 @@ import authRoutes from "./routes/authRoutes.js";
 import flashcardRoutes from "./routes/flashcardRoutes.js";
 import deckRoutes from "./routes/deckRoutes.js";
 import connectDB from "../config/db.js";
+import cors from "cors";
 
 dotenv.config();
 
 const app = express();
 
 await connectDB();
+
+app.use(cors({ origin: ["http://localhost:5173", "http://localhost:8501"] }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
