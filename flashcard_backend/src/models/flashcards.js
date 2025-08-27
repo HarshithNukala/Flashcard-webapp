@@ -14,7 +14,11 @@ const flashcardSchema = new mongoose.Schema(
       enum: ["QNA", "MCQ"],
       default: "QNA",
     },
-    options: [{ type: String }],
+    options: [
+      {
+        type: String,
+      },
+    ],
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

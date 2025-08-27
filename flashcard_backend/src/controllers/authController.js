@@ -21,7 +21,7 @@ const authRegister = async (req, res) => {
     password: hashed_password,
   });
   if (user) {
-    res.status(201).json({
+    res.status(200).json({
       message: "User registered.",
       userId: user._id,
       name: user.name,
@@ -50,7 +50,7 @@ const authLogin = async (req, res) => {
     res.status(400);
     throw new Error("Incorrect password.");
   }
-  res.status(201).send({
+  res.status(200).json({
     message: "Login succussfull",
     userId: user._id,
     name: user.name,

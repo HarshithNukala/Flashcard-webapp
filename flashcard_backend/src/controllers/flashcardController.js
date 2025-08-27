@@ -25,7 +25,7 @@ const getFlashcardsByDeckId = async (req, res) => {
 
 const createFlashcard = async (req, res) => {
   try {
-    const { question, answer, type, options } = req.body;
+    const { question, answer, type = "QNA", options } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) {
       res.status(400).json({ message: "User not found." });
@@ -41,13 +41,13 @@ const createFlashcard = async (req, res) => {
       question,
       answer,
       type,
-      options,
+      options: type === "MCQ" ? options: undefined,
       user: req.user.id,
       deck: req.params.id,
     });
     await newFlashcard.save();
     res
-      .status(201)
+      .status(200)
       .json({ message: "New flashcard was created successfully." });
   } catch (error) {
     console.error("Error in createFlashcard controller", error);
