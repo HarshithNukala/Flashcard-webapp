@@ -346,9 +346,9 @@ def api_request(method, endpoint, data=None, headers=None):
         return None
 
 # Authentication Functions
-def login(username, password):
+def login(email, password):
     """Login user"""
-    data = {"email": username, "password": password}
+    data = {"email": email, "password": password}
     response = api_request("POST", "/api/auth/login", data)
     
     if response and response.status_code == 200:
@@ -360,11 +360,11 @@ def login(username, password):
         st.success("Login successful!")
         st.rerun()
     elif response:
-        st.error("Invalid username or password")
+        st.error("Invalid email or password")
     
 def register(username, password, email):
     """Register new user"""
-    data = {"username": username, "password": password, "email": email}
+    data = {"name": username, "password": password, "email": email}
     response = api_request("POST", "/api/auth/register", data)
     
     if response and response.status_code == 201:
@@ -507,7 +507,7 @@ def render_sidebar():
                 f"""
                 <div class="user-info">
                     <h3>👋 Welcome!</h3>
-                    <p>{st.session_state.user.get('username', 'User')}</p>
+                    <p>{st.session_state.user.get('Name', 'user')}</p>
                 </div>
                 """, 
                 unsafe_allow_html=True
@@ -560,7 +560,7 @@ def render_auth_page():
         
         with tab1:
             st.subheader("Login")
-            username = st.text_input("Username", key="login_username")
+            username = st.text_input("Email", key="login_username")
             password = st.text_input("Password", type="password", key="login_password")
             
             if st.button("Login", type="primary", use_container_width=True):
@@ -757,7 +757,7 @@ def render_edit_deck_page():
                         st.error("Please enter a deck name")
 
 def render_flashcards_page():
-    """Render flashcards page with grid layout"""
+    """Render flashcards page with improved MCQ support and answer hiding"""
     render_header()
     
     deck = st.session_state.selected_deck
@@ -771,66 +771,102 @@ def render_flashcards_page():
     if deck.get('description'):
         st.write(deck.get('description'))
     
-    # Add new flashcard form
+    # Add new flashcard form with dynamic fields
     with st.expander("➕ Add New Flashcard"):
-        with st.form("create_flashcard_form", clear_on_submit=True):
-            # Card type selection
-            card_type = st.selectbox(
-                "Card Type",
-                options=["QNA", "MCQ"],
-                format_func=lambda x: "Question & Answer" if x == "QNA" else "Multiple Choice Question"
+        # Initialize session state for card type if not exists
+        if 'new_card_type' not in st.session_state:
+            st.session_state.new_card_type = "QNA"
+        
+        # Card type selection
+        card_type = st.selectbox(
+            "Card Type",
+            options=["QNA", "MCQ"],
+            index=0 if st.session_state.new_card_type == "QNA" else 1,
+            key="card_type_selector",
+            format_func=lambda x: "Question & Answer" if x == "QNA" else "Multiple Choice Question"
+        )
+        
+        # Update session state when card type changes
+        if card_type != st.session_state.new_card_type:
+            st.session_state.new_card_type = card_type
+            st.rerun()
+        
+        # Question input
+        question = st.text_area(
+            "Question", 
+            key="new_flashcard_question", 
+            placeholder="Enter your question here..."
+        )
+        
+        # Dynamic fields based on card type
+        if card_type == "QNA":
+            # Traditional Q&A format
+            answer = st.text_area(
+                "Answer", 
+                key="new_flashcard_answer", 
+                placeholder="Enter the answer..."
             )
+        else:  # MCQ format
+            st.write("**Multiple Choice Options:**")
+            col1, col2 = st.columns(2)
             
-            question = st.text_area("Question", placeholder="Enter your question...")
+            with col1:
+                option_a = st.text_input("Option A", key="new_mcq_option_a", placeholder="First option...")
+                option_c = st.text_input("Option C", key="new_mcq_option_c", placeholder="Third option...")
             
-            if card_type == "QNA":
-                # Traditional Q&A format
-                answer = st.text_area("Answer", placeholder="Enter the answer...")
-                
-            else:  # MCQ format
-                st.write("**Multiple Choice Options:**")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    option_a = st.text_input("Option A", placeholder="First option...")
-                    option_c = st.text_input("Option C", placeholder="Third option...")
-                
-                with col2:
-                    option_b = st.text_input("Option B", placeholder="Second option...")
-                    option_d = st.text_input("Option D", placeholder="Fourth option...")
-                
-                # Correct answer selection
-                correct_answer = st.selectbox(
-                    "Correct Answer",
-                    options=["A", "B", "C", "D"],
-                    help="Select which option is the correct answer"
-                )
+            with col2:
+                option_b = st.text_input("Option B", key="new_mcq_option_b", placeholder="Second option...")
+                option_d = st.text_input("Option D", key="new_mcq_option_d", placeholder="Fourth option...")
             
-            if st.form_submit_button("Add Flashcard", type="primary"):
-                if question:
-                    if card_type == "QNA":
-                        if answer:
-                            create_flashcard(deck.get('_id'), question, answer, card_type)
-                            st.rerun()
-                        else:
-                            st.error("Please enter an answer")
-                    else:  # MCQ
-                        options = [opt.strip() for opt in [option_a, option_b, option_c, option_d] if opt.strip()]
-                        if len(options) >= 2:
-                            # Create answer string with correct option marked
-                            mcq_answer = f"Correct Answer: {correct_answer}"
-                            create_flashcard(deck.get('_id'), question, mcq_answer, card_type, options)
-                            st.rerun()
-                        else:
-                            st.error("Please enter at least 2 options for multiple choice")
+            # Correct answer selection
+            correct_answer = st.selectbox(
+                "Correct Answer",
+                options=["A", "B", "C", "D"],
+                key="new_mcq_correct",
+                help="Select which option is the correct answer"
+            )
+        
+        # Submit button
+        if st.button("Add Flashcard", type="primary"):
+            if not question.strip():
+                st.error("Please enter a question")
+            elif card_type == "QNA":
+                if not answer.strip():
+                    st.error("Please enter an answer")
                 else:
-                    st.error("Please enter a question")
+                    if create_flashcard(deck.get('_id'), question, answer, card_type):
+                        # Clear fields on success
+                        st.session_state.new_flashcard_question = ""
+                        st.session_state.new_flashcard_answer = ""
+                        st.rerun()
+            else:  # MCQ
+                options = [
+                    st.session_state.get("new_mcq_option_a", "").strip(),
+                    st.session_state.get("new_mcq_option_b", "").strip(),
+                    st.session_state.get("new_mcq_option_c", "").strip(),
+                    st.session_state.get("new_mcq_option_d", "").strip(),
+                ]
+                
+                if sum(bool(opt) for opt in options) < 2:
+                    st.error("Please enter at least 2 options for multiple choice")
+                elif not options[ord(correct_answer) - ord("A")]:
+                    st.error("The correct answer option cannot be blank")
+                else:
+                    mcq_answer = f"Correct Answer: {correct_answer}"
+                    if create_flashcard(deck.get('_id'), question, mcq_answer, card_type, options):
+                        # Clear all fields on success
+                        st.session_state.new_flashcard_question = ""
+                        st.session_state.new_mcq_option_a = ""
+                        st.session_state.new_mcq_option_b = ""
+                        st.session_state.new_mcq_option_c = ""
+                        st.session_state.new_mcq_option_d = ""
+                        st.rerun()
     
     st.markdown("---")
     
     # Display flashcards in grid
     flashcards = get_flashcards(deck.get('_id'))
-
+    
     if flashcards:
         st.subheader(f"Flashcards ({len(flashcards)})")
         
@@ -864,7 +900,8 @@ def render_flashcards_page():
                         btn_col1, btn_col2, btn_col3 = st.columns(3)
                         
                         with btn_col1:
-                            if st.button("👁️", key=f"view_{card.get('_id')}", help="View Card", use_container_width=True):
+                            view_key = f"view_{card.get('_id')}"
+                            if st.button("👁️", key=view_key, help="View Card", use_container_width=True):
                                 st.session_state[f"show_card_{card.get('_id')}"] = True
                                 st.rerun()
                         
@@ -885,23 +922,98 @@ def render_flashcards_page():
                         
                         # Show full card details if requested
                         if st.session_state.get(f"show_card_{card.get('_id')}", False):
-                            with st.expander("Full Card Details", expanded=True):
+                            with st.expander("Card Details", expanded=True):
                                 st.write("**Question:**")
                                 st.write(card.get('question', 'No question'))
                                 
                                 if card.get('type') == 'MCQ':
-                                    st.write("**Options:**")
+                                    # MCQ Interactive Mode
                                     options = card.get('options', [])
-                                    for idx, option in enumerate(options):
-                                        st.write(f"{chr(65 + idx)}. {option}")
-                                    st.write("**Answer:**")
-                                    st.write(card.get('answer', 'No answer'))
-                                else:
-                                    st.write("**Answer:**")
-                                    st.write(card.get('answer', 'No answer'))
+                                    correct_answer_text = card.get('answer', '')
+                                    correct_letter = "A"
+                                    
+                                    if 'Correct Answer:' in correct_answer_text:
+                                        correct_letter = correct_answer_text.split('Correct Answer: ')[1].strip()
+                                    
+                                    user_choice_key = f"user_mcq_choice_{card.get('_id')}"
+                                    user_choice = st.session_state.get(user_choice_key)
+                                    
+                                    if user_choice is None:
+                                        # Show options as buttons for selection
+                                        st.write("**Choose your answer:**")
+                                        
+                                        for idx, option in enumerate(options):
+                                            if option:  # Only show non-empty options
+                                                letter = chr(65 + idx)  # A, B, C, D
+                                                if st.button(f"{letter}. {option}", key=f"{user_choice_key}_{letter}", use_container_width=True):
+                                                    st.session_state[user_choice_key] = letter
+                                                    st.rerun()
+                                    else:
+                                        # Show result and all options
+                                        st.write(f"**Your choice:** {user_choice}")
+                                        
+                                        if user_choice == correct_letter:
+                                            st.success("✅ Correct!")
+                                        else:
+                                            st.error(f"❌ Incorrect! The correct answer is {correct_letter}")
+                                        
+                                        st.write("**All Options:**")
+                                        for idx, option in enumerate(options):
+                                            if option:  # Only show non-empty options
+                                                letter = chr(65 + idx)
+                                                if letter == correct_letter:
+                                                    st.markdown(f"**✅ {letter}. {option}** (Correct Answer)")
+                                                else:
+                                                    st.write(f"{letter}. {option}")
+                                        
+                                        # Reset button
+                                        if st.button("🔄 Try Again", key=f"reset_mcq_{card.get('_id')}"):
+                                            st.session_state.pop(user_choice_key, None)
+                                            st.rerun()
                                 
-                                if st.button("Close", key=f"close_{card.get('_id')}"):
+                                else:
+                                    # QNA Mode - Hide answer until revealed
+                                    show_answer_key = f"show_answer_{card.get('_id')}"
+                                    
+                                    if not st.session_state.get(show_answer_key, False):
+                                        # Show blurred answer
+                                        st.markdown(
+                                            f"""
+                                            <div style="
+                                                filter: blur(8px);
+                                                background-color: #2c3e50;
+                                                padding: 10px;
+                                                border-radius: 5px;
+                                                color: #888;
+                                                user-select: none;
+                                                margin: 10px 0;
+                                            ">
+                                                {card.get('answer', 'No answer')}
+                                            </div>
+                                            """,
+                                            unsafe_allow_html=True
+                                        )
+                                        
+                                        if st.button("👁️ Show Answer", key=f"reveal_{card.get('_id')}", type="primary"):
+                                            st.session_state[show_answer_key] = True
+                                            st.rerun()
+                                    else:
+                                        # Show revealed answer
+                                        st.write("**Answer:**")
+                                        st.success(card.get('answer', 'No answer'))
+                                        
+                                        if st.button("🙈 Hide Answer", key=f"hide_{card.get('_id')}"):
+                                            st.session_state[show_answer_key] = False
+                                            st.rerun()
+                                
+                                # Close button
+                                if st.button("✖️ Close", key=f"close_{card.get('_id')}"):
                                     st.session_state[f"show_card_{card.get('_id')}"] = False
+                                    # Clear any MCQ selections when closing
+                                    user_choice_key = f"user_mcq_choice_{card.get('_id')}"
+                                    st.session_state.pop(user_choice_key, None)
+                                    show_answer_key = f"show_answer_{card.get('_id')}"
+                                    st.session_state.pop(show_answer_key, None)
                                     st.rerun()
         
         # Edit flashcard form
