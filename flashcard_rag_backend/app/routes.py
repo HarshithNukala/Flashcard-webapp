@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from .schemas import QuestionRequest, AnswerResponse, DocumentRequest
-from .rag import ask_question, add_documents
+from .schemas import QuestionRequest, QNAAnswerResponse, MCQAnswerResponse, DocumentRequest
+from .rag import ask_question, ask_MCQ, add_documents
 
 router = APIRouter(prefix = "/rag", tags=["RAG"])
 
@@ -8,10 +8,15 @@ router = APIRouter(prefix = "/rag", tags=["RAG"])
 def health_check():
     return {"Status": "OK"}
 
-@router.post("/ask", response_model=AnswerResponse)
-def ask_question_endpoint(payload: QuestionRequest):
+@router.post("/ask_QNA", response_model=QNAAnswerResponse)
+def ask_QNA_question_endpoint(payload: QuestionRequest):
     result = ask_question(payload.deck_id, payload.question)
-    return AnswerResponse(answer=result["answer"], sources=result["sources"])
+    return QNAAnswerResponse(answer=result["answer"], sources=result["sources"])
+
+@router.post("/ask_MCQ", response_model=MCQAnswerResponse)
+def ask_MCQ_question_endpoint(payload: QuestionRequest):
+    result = ask_MCQ(payload.deck_id, payload.question)
+    return MCQAnswerResponse(answer=result["answer"], options=result["options"], sources=result["sources"])
 
 @router.post("/add_docs")
 def add_docs(payload: DocumentRequest):

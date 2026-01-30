@@ -5,6 +5,7 @@ from datetime import datetime
 
 # Configuration
 API_BASE_URL = "http://localhost:5001"
+RAG_API_BASE_URL = "http://127.0.0.1:8000"
 st.set_page_config(
     page_title="Flashcards App",
     page_icon="📚",
@@ -458,12 +459,13 @@ def create_flashcard(deck_id, question, answer, card_type="QNA", options=None):
     
     response = api_request("POST", f"/api/flashcards/{deck_id}", data)
     
-    if response and response.status_code == 201:
-        st.success("Flashcard created successfully!")
-        return True
-    elif response:
-        st.error("Failed to create flashcard")
-    return False
+    if response:
+        if response.status_code == 200:  # Backend returns 200, not 201
+            return True
+        else:
+            return False
+    else:
+        return False
 
 def update_flashcard(flashcard_id, question, answer, card_type="QNA", options=None):
     """Update an existing flashcard with MCQ support"""
@@ -495,6 +497,57 @@ def delete_flashcard(flashcard_id):
     elif response:
         st.error("Failed to delete flashcard")
     return False
+
+# AI Flashcard Generation Functions
+def add_documents_to_rag(deck_id, documents):
+    """Add documents to RAG system for a specific deck"""
+    try:
+        url = f"{RAG_API_BASE_URL}/rag/add_docs"
+        data = {
+            "deck_id": deck_id,
+            "docs": documents
+        }
+        response = requests.post(url, json=data, timeout=30)
+        return response
+    except Exception as e:
+        st.error(f"Error adding documents to RAG: {str(e)}")
+        return None
+
+def generate_qna_flashcard(deck_id, question):
+    """Generate QNA flashcard using AI"""
+    try:
+        url = f"{RAG_API_BASE_URL}/rag/ask_QNA"
+        data = {
+            "deck_id": deck_id,
+            "question": question
+        }
+        response = requests.post(url, json=data, timeout=60)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"AI Generation Error: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Error generating QNA flashcard: {str(e)}")
+        return None
+
+def generate_mcq_flashcard(deck_id, question):
+    """Generate MCQ flashcard using AI"""
+    try:
+        url = f"{RAG_API_BASE_URL}/rag/ask_MCQ"
+        data = {
+            "deck_id": deck_id,
+            "question": question
+        }
+        response = requests.post(url, json=data, timeout=60)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"AI Generation Error: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Error generating MCQ flashcard: {str(e)}")
+        return None
 
 # UI Components
 
@@ -835,10 +888,13 @@ def render_flashcards_page():
                     st.error("Please enter an answer")
                 else:
                     if create_flashcard(deck.get('_id'), question, answer, card_type):
+                        st.success("Flashcard created successfully!")
                         # Clear fields on success
                         st.session_state.new_flashcard_question = ""
                         st.session_state.new_flashcard_answer = ""
                         st.rerun()
+                    else:
+                        st.error("Failed to create flashcard")
             else:  # MCQ
                 options = [
                     st.session_state.get("new_mcq_option_a", "").strip(),
@@ -854,6 +910,7 @@ def render_flashcards_page():
                 else:
                     mcq_answer = f"Correct Answer: {correct_answer}"
                     if create_flashcard(deck.get('_id'), question, mcq_answer, card_type, options):
+                        st.success("Flashcard created successfully!")
                         # Clear all fields on success
                         st.session_state.new_flashcard_question = ""
                         st.session_state.new_mcq_option_a = ""
@@ -861,7 +918,191 @@ def render_flashcards_page():
                         st.session_state.new_mcq_option_c = ""
                         st.session_state.new_mcq_option_d = ""
                         st.rerun()
+                    else:
+                        st.error("Failed to create flashcard")
     
+    # AI Flashcard Generation Section
+    with st.expander("🤖 Generate Flashcards with AI"):
+        # Handle field reset flag
+        if st.session_state.get('ai_reset_fields', False):
+            # Clear the reset flag
+            st.session_state.ai_reset_fields = False
+            # Clear widget values by removing them from session state
+            for key in ['ai_question_input', 'ai_documents_input', 'ai_card_type']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+        
+        st.markdown("**Use AI to automatically generate flashcards from your documents!**")
+        
+        # Document upload for RAG
+        st.subheader("1️⃣ Upload Documents (Optional)")
+        st.info("💡 Upload documents to provide context for AI-generated flashcards. Skip this if you've already uploaded documents for this deck.")
+        
+        uploaded_files = st.file_uploader(
+            "Choose text files",
+            type=['txt', 'md'],
+            accept_multiple_files=True,
+            key="ai_doc_uploader"
+        )
+        
+        documents_text = st.text_area(
+            "Or paste your documents here",
+            placeholder="Paste your study material, notes, or any text content here...",
+            height=100,
+            key="ai_documents_input"
+        )
+        
+        if st.button("📚 Upload Documents to AI", key="upload_docs_ai"):
+            documents = []
+            
+            # Process uploaded files
+            if uploaded_files:
+                for file in uploaded_files:
+                    try:
+                        content = file.read().decode('utf-8')
+                        documents.append(f"File: {file.name}\n{content}")
+                    except Exception as e:
+                        st.error(f"Error reading file {file.name}: {str(e)}")
+            
+            # Add pasted text
+            if documents_text.strip():
+                documents.append(documents_text.strip())
+            
+            if documents:
+                with st.spinner("Uploading documents to AI system..."):
+                    response = add_documents_to_rag(deck.get('_id'), documents)
+                    if response and response.status_code == 200:
+                        st.success(f"✅ Successfully uploaded {len(documents)} document(s) to AI system!")
+                    else:
+                        st.error("❌ Failed to upload documents to AI system")
+            else:
+                st.warning("Please upload files or paste text content")
+        
+        st.markdown("---")
+        
+        # AI Generation Section
+        st.subheader("2️⃣ Generate Flashcard with AI")
+        
+        # AI card type selection
+        ai_card_type = st.selectbox(
+            "Select AI Generation Type",
+            options=["QNA", "MCQ"],
+            key="ai_card_type",
+            format_func=lambda x: "🔤 Question & Answer" if x == "QNA" else "🔍 Multiple Choice Question"
+        )
+        
+        # Question input for AI
+        ai_question = st.text_area(
+            "Enter your question or topic",
+            placeholder="e.g., 'What is photosynthesis?' or 'Explain machine learning concepts'",
+            key="ai_question_input",
+            help="The AI will generate a flashcard based on this question and the documents you've uploaded."
+        )
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            generate_btn = st.button(
+                f"🤖 Generate {ai_card_type} Flashcard",
+                type="primary",
+                key="generate_ai_flashcard"
+            )
+        
+        with col2:
+            # Space for future buttons or features
+            pass
+        
+        # Generate flashcard with AI
+        if generate_btn:
+            if not ai_question.strip():
+                st.error("Please enter a question or topic")
+            else:
+                with st.spinner(f"🤖 Generating {ai_card_type} flashcard with AI..."):
+                    if ai_card_type == "QNA":
+                        result = generate_qna_flashcard(deck.get('_id'), ai_question)
+                    else:
+                        result = generate_mcq_flashcard(deck.get('_id'), ai_question)
+                    
+                    if result:
+                        st.session_state.ai_generated_content = {
+                            'question': ai_question,
+                            'type': ai_card_type,
+                            'result': result
+                        }
+                        st.rerun()
+        
+        # Display generated content
+        if 'ai_generated_content' in st.session_state and st.session_state.ai_generated_content:
+            content = st.session_state.ai_generated_content
+            st.success("✅ AI Flashcard Generated Successfully!")
+            
+            # Display the generated flashcard
+            with st.container():
+                st.markdown("### 📋 Generated Flashcard Preview")
+                
+                # Question
+                st.markdown(f"**Question:** {content['question']}")
+                
+                if content['type'] == 'QNA':
+                    # QNA format
+                    st.markdown(f"**Answer:** {content['result'].get('answer', 'No answer generated')}")
+                else:
+                    # MCQ format
+                    st.markdown("**Options:**")
+                    options = content['result'].get('options', [])
+                    for i, option in enumerate(options):
+                        letter = chr(65 + i)  # A, B, C, D
+                        st.markdown(f"  {letter}. {option}")
+                    
+                    correct_answer = content['result'].get('answer', 1)
+                    if isinstance(correct_answer, int) and 1 <= correct_answer <= len(options):
+                        correct_letter = chr(64 + correct_answer)  # Convert 1,2,3,4 to A,B,C,D
+                        st.markdown(f"**Correct Answer:** {correct_letter}")
+                
+                # Sources
+                sources = content['result'].get('sources', [])
+                if sources:
+                    st.markdown("**Sources:**")
+                    for i, source in enumerate(sources[:3]):  # Show max 3 sources
+                        st.caption(f"{i+1}. {source[:200]}..." if len(source) > 200 else f"{i+1}. {source}")
+        
+        # Save generated flashcard
+        if 'ai_generated_content' in st.session_state and st.session_state.ai_generated_content:
+            if st.button("💾 Save Generated Flashcard", key="save_ai_flashcard_final"):
+                content = st.session_state.ai_generated_content
+                
+                if content['type'] == 'QNA':
+                    # Save QNA flashcard
+                    success = create_flashcard(
+                        deck.get('_id'), 
+                        content['question'],
+                        content['result'].get('answer', ''),
+                        'QNA'
+                    )
+                else:
+                    # Save MCQ flashcard
+                    options = content['result'].get('options', [])
+                    correct_answer = content['result'].get('answer', 1)
+                    correct_letter = chr(64 + correct_answer) if isinstance(correct_answer, int) else 'A'
+                    
+                    success = create_flashcard(
+                        deck.get('_id'),
+                        content['question'],
+                        f"Correct Answer: {correct_letter}",
+                        'MCQ',
+                        options
+                    )
+                
+                if success:
+                    st.success("🎉 AI-generated flashcard saved successfully!")
+                    # Clear the generated content and set reset flag
+                    del st.session_state.ai_generated_content
+                    st.session_state.ai_reset_fields = True  # Flag to reset fields
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save AI-generated flashcard")
+
     st.markdown("---")
     
     # Display flashcards in grid

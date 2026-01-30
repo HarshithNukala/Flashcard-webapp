@@ -37,20 +37,58 @@ llm = ChatOllama(model="llama3.2:3B")
 from langchain.chains import RetrievalQA
 
 def ask_question(deck_id: str, question: str):
-    # vectorstore = get_vectorstore(deck_id)
-    # retriever = vectorstore.as_retriever()
-    # qa = RetrievalQA.from_chain_type(
-    #     llm = llm,
-    #     retriever = retriever,
-    #     return_source_documents = True
-    # )
-    # result = qa({"query": question})
-    # return {
-    #     "answer": result["result"],
-    #     "sources": [doc.page_content for doc in result["source_documents"]]
-    # }
-    result = llm.invoke(question)
+    vectorstore = get_vectorstore(deck_id)
+    retriever = vectorstore.as_retriever()
+    qa = RetrievalQA.from_chain_type(
+        llm = llm,
+        retriever = retriever,
+        return_source_documents = True
+    )
+    result = qa({"query": question})
     return {
-        "answer": result.content,
-        "sources": ["test sources"]
+        "answer": result["result"],
+        "sources": [doc.page_content for doc in result["source_documents"]]
     }
+    
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+import json
+    
+def ask_MCQ(deck_id: str, question: str):
+    vectorstore = get_vectorstore(deck_id)
+    retriever = vectorstore.as_retriever()
+    docs = retriever.get_relevant_documents(question)
+    context = "\n".join([d.page_content for d in docs])
+    prompt = PromptTemplate(
+    template="""
+    You are an assistant that creates multiple choice questions (MCQs) based strictly on the given context.
+
+    Context:
+    {context}
+
+    Question:
+    {question}
+
+    Task:
+    1. Identify the correct answer from the context.
+    2. Generate 3 plausible but incorrect distractors.
+    3. Shuffle the order so the correct answer is not always first.
+    4. Return the result as strict JSON with exactly these fields:
+       - "answer": (integer, the correct answer option number),
+       - "options": (list of 4 strings, including the correct answer),
+       - "sources": (list of strings, copy directly from the provided context chunks).
+
+    Output ONLY valid JSON, nothing else.
+    """,
+    input_variables=["context", "question"]
+)
+    
+    chain = LLMChain(llm = llm, prompt = prompt)
+    raw_output = chain.run({"context": context, "question": question})
+    try:
+        mcq = json.loads(raw_output)
+    except Exception:
+        mcq = {"error": "Failed to parse LLM output", "raw": raw_output}
+    
+    print(raw_output)
+    return mcq

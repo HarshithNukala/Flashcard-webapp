@@ -5,8 +5,13 @@ class QuestionRequest(BaseModel):
     deck_id: str
     question: str
     
-class AnswerResponse(BaseModel):
+class QNAAnswerResponse(BaseModel):
     answer: str
+    sources: Optional[List[str]] = None
+    
+class MCQAnswerResponse(BaseModel):
+    answer: int
+    options: List[str]
     sources: Optional[List[str]] = None
     
 class DocumentRequest(BaseModel):
